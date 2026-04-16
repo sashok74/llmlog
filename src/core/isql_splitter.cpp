@@ -26,36 +26,27 @@ std::string_view trimView(std::string_view v) noexcept {
     return v;
 }
 
-/// Detects a 'SET TERM <new> <old>' directive at the start of @p statement.
-/// Firebird's isql accepts the form 'SET TERM <new> <old>' where <old> is
-/// whatever the current terminator is — we verify it matches and swap.
+/// Detects a 'SET TERM <new> [<old>]' directive at the start of @p statement.
+/// Firebird's isql writes 'SET TERM ^ ;' to switch from ';' to '^'. The
+/// trailing old-terminator is usually but not always present in scripts.
 ///
 /// Returns the new terminator on success; empty string if not a SET TERM.
 std::string detectSetTerm(std::string_view statement,
-                          std::string_view currentTerm) {
+                          std::string_view /*currentTerm*/) {
     auto s = trimView(statement);
-    // Expect 'SET' (case-insensitive)
     if (s.size() < 3 || !iequalsView(s.substr(0, 3), "SET")) return {};
     s.remove_prefix(3);
     s = trimView(s);
     if (s.size() < 4 || !iequalsView(s.substr(0, 4), "TERM")) return {};
     s.remove_prefix(4);
     s = trimView(s);
-    // Whatever is left should be: <new-term> [whitespace] <old-term>
-    // We consume the first non-whitespace token as the new terminator.
-    // Firebird's rule: new terminator may be multi-character but cannot
-    // contain whitespace or the old terminator.
+    if (s.empty()) return {};
+    // Take everything up to first whitespace as the new terminator. Anything
+    // after (the trailing old-terminator) we simply ignore.
     const auto end = s.find_first_of(" \t\r\n");
-    if (end == std::string_view::npos) return {};
-    std::string newTerm(s.substr(0, end));
-    auto rest = trimView(s.substr(end));
-    if (!rest.empty() && rest.substr(0, currentTerm.size()) == currentTerm) {
-        return newTerm;
-    }
-    // Some scripts omit the trailing old-terminator; accept that too.
-    if (rest.empty() || iequalsView(rest, "")) return newTerm;
-    // Otherwise this is a malformed SET TERM; be lenient and still accept.
-    return newTerm;
+    return (end == std::string_view::npos)
+        ? std::string(s)
+        : std::string(s.substr(0, end));
 }
 
 } // namespace
