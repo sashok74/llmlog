@@ -1,0 +1,34 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 20, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "default",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "local-dev",
+      "inherits": "default",
+      "displayName": "Local dev (uses ../fbpp sibling)",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "FBPP_SOURCE_DIR": "${sourceDir}/../fbpp",
+        "LLMLOG_BUILD_TESTING": "ON"
+      }
+    },
+    {
+      "name": "fetch-release",
+      "inherits": "default",
+      "displayName": "Fetch fbpp from GitHub, Release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LLMLOG_BUILD_TESTING": "ON"
+      }
+    }
+  ]
+}
