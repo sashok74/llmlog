@@ -1,0 +1,65 @@
+# Build directories
+build/
+build-*/
+out/
+cmake-build-*/
+
+# Conan
+CMakeUserPresets.json
+conan_provider.cmake
+conandata.yml.lock
+.conan2/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.sln.docstates
+
+# CMake artefacts
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+install_manifest.txt
+
+# Compiled
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.exp
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Runtime data
+*.fdb
+*.fbk
+logs/
+!**/sql/*.fdb-schema
+
+# Local config
+.env
+.env.local
+config/local.json
+
+# Obsidian / notes
+.obsidian/
+
+# Python (for scripts/ if any)
+__pycache__/
+*.pyc
+.venv/
+venv/
