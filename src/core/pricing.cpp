@@ -24,8 +24,9 @@ std::string makeKey(std::string_view a, std::string_view b) {
 }
 
 /// DECFLOAT parameters reach Firebird as strings via CAST(? AS DECFLOAT(34)).
-/// Empty-string input is mapped to NULL via a SQL CASE. We never pass raw
-/// doubles.
+/// NULLIF(?, '') maps empty-string inputs to NULL BEFORE the CAST so we
+/// never end up trying to CAST '' → DECFLOAT (which Firebird rejects).
+/// One parameter per column; 8 params total.
 const char* kUpsertPriceSql = R"SQL(
 UPDATE OR INSERT INTO PRICING
     (MODEL_ID, EFFECTIVE_FROM,
@@ -36,10 +37,10 @@ VALUES (
     CAST(? AS TIMESTAMP WITH TIME ZONE),
     CAST(? AS DECFLOAT(34)),
     CAST(? AS DECFLOAT(34)),
-    CASE WHEN ? = '' THEN NULL ELSE CAST(? AS DECFLOAT(34)) END,
-    CASE WHEN ? = '' THEN NULL ELSE CAST(? AS DECFLOAT(34)) END,
-    CASE WHEN ? = '' THEN NULL ELSE CAST(? AS DECFLOAT(34)) END,
-    CASE WHEN ? = '' THEN NULL ELSE ? END
+    CAST(NULLIF(?, '') AS DECFLOAT(34)),
+    CAST(NULLIF(?, '') AS DECFLOAT(34)),
+    CAST(NULLIF(?, '') AS DECFLOAT(34)),
+    NULLIF(?, '')
 )
 MATCHING (MODEL_ID, EFFECTIVE_FROM)
 )SQL";
@@ -185,17 +186,15 @@ void PricingDao::upsertPrice(const Price& price) {
 
     auto tra = conn_->StartTransaction();
     auto st  = conn_->prepareStatement(kUpsertPriceSql);
-    // The CASE-based NULL mapping duplicates each optional field in the
-    // bind tuple: once for the comparison, once as the CAST source.
     tra->execute(st, std::make_tuple(
         modelId,
         price.effective_from,
         price.input_per_mtok,
         price.output_per_mtok,
-        price.cache_read_per_mtok,  price.cache_read_per_mtok,
-        price.cache_write_per_mtok, price.cache_write_per_mtok,
-        price.image_per_mtok,       price.image_per_mtok,
-        price.note,                 price.note
+        price.cache_read_per_mtok,
+        price.cache_write_per_mtok,
+        price.image_per_mtok,
+        price.note
     ));
     tra->Commit();
 }

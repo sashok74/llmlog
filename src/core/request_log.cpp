@@ -17,19 +17,16 @@ namespace {
 //   (call_time, model_id, request_id, input, output, cache_r, cache_w,
 //    image, latency_ms, http_status, tag) → (id, cost_usd)
 //
-// We use CAST(? AS TIMESTAMP WITH TIME ZONE) for the timestamp and a
-// CASE-based NULL mapping for the two optional VARCHAR inputs. Note each
-// optional field is bound twice — once for the equality test, once as
-// the non-NULL value — so the tuple has 13 entries to fill 11 logical
-// parameters.
+// CAST(? AS TIMESTAMP WITH TIME ZONE) for the timestamp; NULLIF(?, '') for
+// the two optional VARCHAR inputs (request_id and tag). 11 parameters.
 const char* kLogRequestSql = R"SQL(
 SELECT ID, COST_USD FROM SP_LOG_REQUEST(
     CAST(? AS TIMESTAMP WITH TIME ZONE),
     ?,
-    CASE WHEN ? = '' THEN NULL ELSE ? END,
+    NULLIF(?, ''),
     ?, ?, ?, ?, ?,
     ?, ?,
-    CASE WHEN ? = '' THEN NULL ELSE ? END
+    NULLIF(?, '')
 )
 )SQL";
 
@@ -42,11 +39,11 @@ LoggedRequest RequestLogDao::insert(const RequestLogEntry& entry) {
     auto rs = tra->openCursor(st, std::make_tuple(
         entry.call_time,
         entry.model_id,
-        entry.request_id, entry.request_id,
+        entry.request_id,
         entry.input_tokens, entry.output_tokens,
         entry.cache_read,  entry.cache_write, entry.image_tokens,
         entry.latency_ms,  entry.http_status,
-        entry.tag, entry.tag
+        entry.tag
     ));
 
     std::tuple<std::int64_t, std::string> row;
