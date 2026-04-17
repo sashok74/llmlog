@@ -44,6 +44,7 @@ llmlog_add_test(test_isql_splitter   unit/test_isql_splitter.cpp)
 llmlog_add_test(test_config          unit/test_config.cpp)
 llmlog_add_test(test_sse_parser      unit/test_sse_parser.cpp)
 llmlog_add_test(test_pricing         unit/test_pricing.cpp)
+llmlog_add_test(test_request_log     unit/test_request_log.cpp)
 
 # SSE-parser fixture tests need to locate tests/fixtures/*.sse at runtime.
 # Inject the source-tree path so the test binary can find them regardless
