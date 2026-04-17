@@ -59,3 +59,13 @@ target_link_libraries(llmlog_core
 target_compile_features(llmlog_core PUBLIC cxx_std_20)
 
 add_library(llmlog::core ALIAS llmlog_core)
+
+# ---------------------------------------------------------------------------
+# llmlog CLI
+# ---------------------------------------------------------------------------
+add_executable(llmlog cli/main.cpp)
+target_link_libraries(llmlog PRIVATE
+    llmlog::core
+    CLI11::CLI11
+)
+target_compile_features(llmlog PRIVATE cxx_std_20)

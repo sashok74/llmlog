@@ -7,6 +7,7 @@
 #include <cctype>
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
 #include <ctime>
 #include <stdexcept>
 #include <string>
@@ -190,10 +191,19 @@ void forwardRequest(const UpstreamAdapter&       adapter,
     try {
         entry.model_id = pricing.resolveModelId(adapter.name, *acc.modelId());
         logger.insert(entry);
-    } catch (...) {
+    } catch (const std::exception& e) {
         // Logging failure must not poison an otherwise-successful proxy
-        // response — the client already has its bytes. Swallow, trace
-        // later via dedicated error counters.
+        // response — the client already has its bytes. But print the
+        // cause so operators (and CI) can see it. Quiet error counters
+        // come in a later phase.
+        std::fprintf(stderr,
+            "[llmlog] request-log insert failed for provider=%s model=%s: %s\n",
+            adapter.name.c_str(), acc.modelId()->c_str(), e.what());
+    } catch (...) {
+        std::fprintf(stderr,
+            "[llmlog] request-log insert failed (unknown exception) for "
+            "provider=%s model=%s\n",
+            adapter.name.c_str(), acc.modelId()->c_str());
     }
 }
 

@@ -72,6 +72,7 @@ set(BUILD_TESTING ${LLMLOG_BUILD_TESTING} CACHE BOOL "" FORCE)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(httplib CONFIG REQUIRED)
 find_package(OpenSSL CONFIG REQUIRED)
+find_package(CLI11 CONFIG REQUIRED)
 
 # -----------------------------------------------------------------------------
 # Targets
