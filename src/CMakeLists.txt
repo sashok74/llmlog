@@ -38,6 +38,7 @@ add_library(llmlog_core STATIC
     core/pricing.cpp
     core/pricing_seed.cpp
     core/request_log.cpp
+    proxy/server.cpp
     "${LLMLOG_GENERATED_DIR}/core/embedded_sql.cpp"
 )
 
@@ -50,6 +51,8 @@ target_link_libraries(llmlog_core
     PUBLIC
         fbpp::fbpp_core
         nlohmann_json::nlohmann_json
+        httplib::httplib
+        openssl::openssl
 )
 
 target_compile_features(llmlog_core PUBLIC cxx_std_20)
