@@ -50,10 +50,17 @@ desktop.ini
 logs/
 !**/sql/*.fdb-schema
 
-# Local config
+# Local config. The committed template is providers.example.json; the real
+# filled-in file (secrets) must never land in git.
 .env
 .env.local
 config/local.json
+config/providers.json
+config/config.json
+config/*.secrets.json
+config/deploy/
+# Safety net for direnv or similar shell-secrets managers.
+.envrc
 
 # Obsidian / notes
 .obsidian/

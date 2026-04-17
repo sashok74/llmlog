@@ -1,0 +1,129 @@
+name: CI - Linux GCC 13
+
+on:
+  push:
+    branches: [main, 'feat/**', 'claude/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: RelWithDebInfo
+  CC: gcc-13
+  CXX: g++-13
+
+jobs:
+  build-and-test:
+    name: Build and Test (GCC 13, RelWithDebInfo)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    services:
+      firebird:
+        image: jacobalberty/firebird:v5.0
+        env:
+          FIREBIRD_USER: SYSDBA
+          FIREBIRD_PASSWORD: planomer
+          ISC_PASSWORD: planomer
+        ports:
+          - 3050:3050
+        options: >-
+          --health-cmd "/usr/local/firebird/bin/isql -z"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake gcc-13 g++-13 libstdc++-13-dev python3-pip wget ninja-build
+
+      - name: Install Firebird 5.0 client library
+        run: |
+          wget -q https://github.com/FirebirdSQL/firebird/releases/download/v5.0.0/Firebird-5.0.0.1306-0-linux-x64.tar.gz
+          tar xzf Firebird-5.0.0.1306-0-linux-x64.tar.gz
+          cd Firebird-5.0.0.1306-0-linux-x64
+          tar xzf buildroot.tar.gz
+          sudo mkdir -p /opt/firebird
+          sudo cp -r opt/firebird/* /opt/firebird/ 2>/dev/null || true
+          sudo cp -r usr/include/* /usr/include/ 2>/dev/null || true
+          sudo cp -r usr/lib/* /usr/lib/ 2>/dev/null || true
+          sudo ldconfig
+
+      - name: Install Conan
+        run: |
+          pip install "conan>=2.3,<3"
+          conan --version
+
+      - name: Detect Conan profile
+        run: |
+          conan profile detect --force
+          conan profile show
+
+      - name: Conan install
+        run: |
+          conan install . \
+            --output-folder=build \
+            --build=missing \
+            -s build_type=${{ env.BUILD_TYPE }} \
+            -s compiler.cppstd=20
+
+      - name: Configure CMake
+        env:
+          FIREBIRD_HOST: localhost
+          FIREBIRD_PORT: 3050
+          FIREBIRD_USER: SYSDBA
+          FIREBIRD_PASSWORD: planomer
+          FIREBIRD_DB_PATH: /tmp/llmlog_test.fdb
+          FIREBIRD_CHARSET: UTF8
+        run: |
+          TOOLCHAIN_FILE="build/build/${{ env.BUILD_TYPE }}/generators/conan_toolchain.cmake"
+          if [ ! -f "${TOOLCHAIN_FILE}" ]; then
+              TOOLCHAIN_FILE="build/conan_toolchain.cmake"
+          fi
+          echo "Using toolchain: ${TOOLCHAIN_FILE}"
+
+          cmake -S . -B build \
+            -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="${PWD}/${TOOLCHAIN_FILE}" \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DCMAKE_C_COMPILER=${{ env.CC }} \
+            -DCMAKE_CXX_COMPILER=${{ env.CXX }} \
+            -DLLMLOG_BUILD_TESTING=ON
+
+      - name: Build
+        env:
+          FIREBIRD_HOST: localhost
+          FIREBIRD_PORT: 3050
+          FIREBIRD_USER: SYSDBA
+          FIREBIRD_PASSWORD: planomer
+          FIREBIRD_DB_PATH: /tmp/llmlog_test.fdb
+          FIREBIRD_CHARSET: UTF8
+        run: cmake --build build --parallel
+
+      - name: Run tests
+        env:
+          FIREBIRD_HOST: localhost
+          FIREBIRD_PORT: 3050
+          FIREBIRD_USER: SYSDBA
+          FIREBIRD_PASSWORD: planomer
+          FIREBIRD_DB_PATH: /tmp/llmlog_test.fdb
+          FIREBIRD_CHARSET: UTF8
+        run: |
+          mkdir -p /tmp
+          ctest --test-dir build --output-on-failure
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-linux
+          path: |
+            build/CMakeFiles/CMakeOutput.log
+            build/CMakeFiles/CMakeError.log
+            build/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore

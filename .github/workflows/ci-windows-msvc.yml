@@ -1,0 +1,164 @@
+name: CI - Windows MSVC
+
+on:
+  push:
+    branches: [main, 'feat/**', 'claude/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: RelWithDebInfo
+  FIREBIRD_DIR: C:/fb50
+  FIREBIRD_VERSION: "5.0.0.1306"
+
+jobs:
+  build-and-test:
+    name: Build and Test (MSVC 2022, RelWithDebInfo)
+    runs-on: windows-2022
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Firebird 5 (portable zip)
+        shell: pwsh
+        run: |
+          $url = "https://github.com/FirebirdSQL/firebird/releases/download/v5.0.0/Firebird-$($env:FIREBIRD_VERSION)-0-windows-x64.zip"
+          $tmp = Join-Path $env:RUNNER_TEMP "firebird.zip"
+          Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing
+          New-Item -ItemType Directory -Force -Path $env:FIREBIRD_DIR | Out-Null
+          Expand-Archive -Path $tmp -DestinationPath $env:FIREBIRD_DIR -Force
+          if (-not (Test-Path "$env:FIREBIRD_DIR/fbclient.dll")) {
+              throw "fbclient.dll not found in $env:FIREBIRD_DIR after extraction."
+          }
+
+      - name: Initialize security DB and start Firebird
+        shell: pwsh
+        run: |
+          $env:FIREBIRD = $env:FIREBIRD_DIR
+          $isqlExe = Join-Path $env:FIREBIRD_DIR "isql.exe"
+          $fbExe   = Join-Path $env:FIREBIRD_DIR "firebird.exe"
+
+          # Per Firebird 5 doc/README.security_database.txt: the portable zip
+          # ships without a pre-seeded SYSDBA account. Create one via isql in
+          # embedded mode BEFORE starting the server.
+          $initSql = @"
+          create user SYSDBA password 'planomer';
+          commit;
+          quit;
+          "@
+          $initSqlFile = Join-Path $env:RUNNER_TEMP "init_sysdba.sql"
+          Set-Content -Path $initSqlFile -Value $initSql -Encoding ASCII
+          & $isqlExe -i $initSqlFile -user sysdba employee
+          if ($LASTEXITCODE -ne 0) { throw "isql failed to init SYSDBA (exit $LASTEXITCODE)" }
+
+          Start-Process -FilePath $fbExe -ArgumentList "-a" -WorkingDirectory $env:FIREBIRD_DIR
+          Start-Sleep -Seconds 4
+
+          $attempts = 0; $connected = $false
+          while (-not $connected -and $attempts -lt 15) {
+              try {
+                  $tcp = New-Object System.Net.Sockets.TcpClient
+                  $tcp.Connect("127.0.0.1", 3050)
+                  if ($tcp.Connected) { $connected = $true; $tcp.Close() }
+              } catch {
+                  Start-Sleep -Seconds 2; $attempts++
+              }
+          }
+          if (-not $connected) { throw "Firebird did not open port 3050 within timeout." }
+
+      - name: Add Firebird to PATH
+        shell: pwsh
+        run: |
+          Write-Output "$env:FIREBIRD_DIR" >> $env:GITHUB_PATH
+          Write-Output "FIREBIRD=$env:FIREBIRD_DIR" >> $env:GITHUB_ENV
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Conan
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install "conan>=2.3,<3"
+
+      - name: Set up MSVC developer environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Detect Conan profile
+        shell: pwsh
+        run: |
+          conan profile detect --force
+          conan profile show
+
+      - name: Conan install
+        shell: pwsh
+        run: |
+          $buildRoot = "build/windows/$env:BUILD_TYPE"
+          conan install . `
+            "--output-folder=$buildRoot" `
+            --build=missing `
+            "-s" "build_type=$env:BUILD_TYPE" `
+            "-s" "compiler.cppstd=20" `
+            "-c" "tools.cmake.cmaketoolchain:generator=Ninja"
+
+      - name: Configure CMake
+        shell: pwsh
+        run: |
+          $buildRoot = "build/windows/$env:BUILD_TYPE"
+          $toolchain = Get-ChildItem -Recurse -Path $buildRoot -Filter "conan_toolchain.cmake" | Select-Object -First 1
+          if (-not $toolchain) { throw "conan_toolchain.cmake not found under $buildRoot" }
+
+          cmake -S . -B $buildRoot `
+            -G Ninja `
+            "-DCMAKE_TOOLCHAIN_FILE=$($toolchain.FullName)" `
+            "-DCMAKE_BUILD_TYPE=$env:BUILD_TYPE" `
+            -DLLMLOG_BUILD_TESTING=ON
+
+          if ($LASTEXITCODE -ne 0) { throw "CMake configure failed with exit $LASTEXITCODE" }
+
+      - name: Build
+        shell: pwsh
+        env:
+          FIREBIRD_HOST: localhost
+          FIREBIRD_PORT: '3050'
+          FIREBIRD_USER: SYSDBA
+          FIREBIRD_PASSWORD: planomer
+          FIREBIRD_CHARSET: UTF8
+          FIREBIRD_DB_PATH: C:/temp/llmlog_test.fdb
+        run: |
+          New-Item -ItemType Directory -Force -Path C:/temp | Out-Null
+          $buildRoot = "build/windows/$env:BUILD_TYPE"
+          cmake --build $buildRoot --parallel
+          if ($LASTEXITCODE -ne 0) { throw "Build failed with exit $LASTEXITCODE" }
+
+      - name: Run tests
+        shell: pwsh
+        env:
+          FIREBIRD_HOST: localhost
+          FIREBIRD_PORT: '3050'
+          FIREBIRD_USER: SYSDBA
+          FIREBIRD_PASSWORD: planomer
+          FIREBIRD_CHARSET: UTF8
+          FIREBIRD_DB_PATH: C:/temp/llmlog_test.fdb
+        run: |
+          New-Item -ItemType Directory -Force -Path C:/temp | Out-Null
+          $buildRoot = "build/windows/$env:BUILD_TYPE"
+          ctest --test-dir $buildRoot --output-on-failure
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-windows
+          path: |
+            build/windows/${{ env.BUILD_TYPE }}/CMakeFiles/CMakeOutput.log
+            build/windows/${{ env.BUILD_TYPE }}/CMakeFiles/CMakeError.log
+            build/windows/${{ env.BUILD_TYPE }}/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore

@@ -1,0 +1,12 @@
+{
+  "tests": {
+    "temp_db": {
+      "server": "firebird5.home.lan",
+      "path": "/mnt/test/llmlog_test.fdb",
+      "user": "SYSDBA",
+      "password": "planomer",
+      "charset": "UTF8",
+      "recreate_each_test": true
+    }
+  }
+}

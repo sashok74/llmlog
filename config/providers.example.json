@@ -1,0 +1,91 @@
+{
+  "_comment": "llmlog config template. Copy to ~/.llmlog/config.json on the deploy host and fill in real values. NEVER commit the filled file. Secrets live only on disk at chmod 0600, not in VCS, CI logs, or chat. The schema is validated by llmlog at startup; unknown keys are rejected so typos fail fast.",
+
+  "bind": {
+    "host": "127.0.0.1",
+    "port": 7788,
+    "_comment": "Bind to loopback by default. Expose via SSH tunnel, Tailscale, or a TLS-terminating reverse proxy — never bind 0.0.0.0 without real auth + TLS in front."
+  },
+
+  "database": {
+    "server": "127.0.0.1",
+    "port": 3050,
+    "path": "/var/lib/llmlog/db.fdb",
+    "user": "SYSDBA",
+    "password": "CHANGE_ME",
+    "charset": "UTF8",
+    "_comment": "Firebird 5 embedded or remote. On the test server we'll create a dedicated DB file; do NOT reuse your ledger's real DB until the codepath is trusted."
+  },
+
+  "proxy_auth": {
+    "mode": "bearer",
+    "required": true,
+    "_comment": "Clients must present 'Authorization: Bearer <token>' to reach the proxy. Tokens are stored as sha-256 hashes so the raw value exists only in the API_KEYS DB table, not in the config. Use `llmlog keys add --name <name>` (Phase 3) to issue one.",
+    "initial_bootstrap_token": null
+  },
+
+  "providers": {
+    "_comment": "Keys: base_url + api_key only. Proxy routes incoming 'http://host:port/<provider-name>/...' to '<base_url>/...' and injects the provider's own auth header. Remove a provider entry to disable that route.",
+
+    "anthropic": {
+      "base_url": "https://api.anthropic.com",
+      "api_key": "sk-ant-PLACEHOLDER",
+      "auth_header": "x-api-key",
+      "extra_headers": {
+        "anthropic-version": "2023-06-01"
+      }
+    },
+
+    "openai": {
+      "base_url": "https://api.openai.com/v1",
+      "api_key": "sk-PLACEHOLDER",
+      "auth_header": "Authorization",
+      "auth_scheme": "Bearer"
+    },
+
+    "gemini": {
+      "base_url": "https://generativelanguage.googleapis.com/v1beta",
+      "api_key": "AIzaPLACEHOLDER",
+      "_comment": "Google puts the key in the URL (?key=...); llmlog will append it automatically instead of using a header."
+    },
+
+    "deepseek": {
+      "_comment": "DeepSeek is OpenAI-compatible.",
+      "base_url": "https://api.deepseek.com/v1",
+      "api_key": "sk-PLACEHOLDER",
+      "auth_header": "Authorization",
+      "auth_scheme": "Bearer"
+    },
+
+    "moonshot": {
+      "_comment": "Kimi/Moonshot — OpenAI-compatible.",
+      "base_url": "https://api.moonshot.cn/v1",
+      "api_key": "sk-PLACEHOLDER",
+      "auth_header": "Authorization",
+      "auth_scheme": "Bearer"
+    },
+
+    "ollama": {
+      "_comment": "Local — no api_key needed; typical default port 11434.",
+      "base_url": "http://127.0.0.1:11434/v1",
+      "api_key": null,
+      "auth_header": null,
+      "auth_scheme": null
+    },
+
+    "lmstudio": {
+      "_comment": "LM Studio local server — OpenAI-compatible, default port 1234.",
+      "base_url": "http://127.0.0.1:1234/v1",
+      "api_key": null,
+      "auth_header": null,
+      "auth_scheme": null
+    }
+  },
+
+  "logging": {
+    "level": "info",
+    "file": "/var/log/llmlog/llmlog.log",
+    "rotate_max_size_mb": 10,
+    "rotate_max_files": 5
+  }
+}
