@@ -127,12 +127,14 @@ TEST(ConfigLoader, UnderscorePrefixedProviderKeysAreSkipped) {
 // =======================================================================
 TEST_F(TempDirFixture, ResolvesApiKeyFromFile) {
     auto keyFile = writeFile("anthropic.key", "sk-ant-from-file\n");
+    // Use generic_string() so Windows path backslashes don't corrupt the
+    // JSON literal ('C:\U...' would be parsed as a bad escape sequence).
     const std::string cfgText = R"JSON({
       "database": {"path":"x","user":"SYSDBA","password":"pw"},
       "providers": {
         "anthropic": {
           "base_url": "https://api.anthropic.com",
-          "api_key_file": ")JSON" + keyFile.string() + R"JSON("
+          "api_key_file": ")JSON" + keyFile.generic_string() + R"JSON("
         }
       }
     })JSON";

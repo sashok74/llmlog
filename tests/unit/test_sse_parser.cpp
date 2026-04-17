@@ -172,7 +172,9 @@ TEST_F(FixtureTest, AnthropicFixtureYieldsExpectedUsage) {
     EXPECT_EQ(acc.usage()->cache_write_tokens, 0);
 
     ASSERT_TRUE(acc.modelId().has_value());
-    EXPECT_EQ(*acc.modelId(), "claude-haiku-4-5");
+    // Anthropic may return either the alias or the dated form
+    // ('claude-haiku-4-5-20251001'); match on the prefix.
+    EXPECT_NE(acc.modelId()->find("claude-haiku-4-5"), std::string::npos);
 }
 
 TEST_F(FixtureTest, OpenAIFixtureYieldsExpectedUsage) {

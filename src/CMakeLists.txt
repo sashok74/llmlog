@@ -35,6 +35,7 @@ add_library(llmlog_core STATIC
     core/database.cpp
     core/config.cpp
     core/sse_parser.cpp
+    core/pricing.cpp
     "${LLMLOG_GENERATED_DIR}/core/embedded_sql.cpp"
 )
 
