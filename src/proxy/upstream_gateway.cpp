@@ -3,6 +3,9 @@
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <httplib.h>
 
+#include <fbpp/core/exception.hpp>
+#include <fbpp/core/firebird_compat.hpp>
+
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -191,18 +194,23 @@ void forwardRequest(const UpstreamAdapter&       adapter,
     try {
         entry.model_id = pricing.resolveModelId(adapter.name, *acc.modelId());
         logger.insert(entry);
-    } catch (const std::exception& e) {
-        // Logging failure must not poison an otherwise-successful proxy
-        // response — the client already has its bytes. But print the
-        // cause so operators (and CI) can see it. Quiet error counters
-        // come in a later phase.
+    } catch (const fbpp::core::FirebirdException& e) {
         std::fprintf(stderr,
-            "[llmlog] request-log insert failed for provider=%s model=%s: %s\n",
+            "[llmlog] request-log insert: FirebirdException provider=%s model=%s: %s\n",
+            adapter.name.c_str(), acc.modelId()->c_str(), e.what());
+    } catch (const Firebird::FbException& e) {
+        // Raw OO-API exception — fbpp sometimes lets this escape
+        // directly rather than wrapping it.
+        std::fprintf(stderr,
+            "[llmlog] request-log insert: Firebird::FbException provider=%s model=%s\n",
+            adapter.name.c_str(), acc.modelId()->c_str());
+    } catch (const std::exception& e) {
+        std::fprintf(stderr,
+            "[llmlog] request-log insert: std::exception provider=%s model=%s: %s\n",
             adapter.name.c_str(), acc.modelId()->c_str(), e.what());
     } catch (...) {
         std::fprintf(stderr,
-            "[llmlog] request-log insert failed (unknown exception) for "
-            "provider=%s model=%s\n",
+            "[llmlog] request-log insert: unknown exception provider=%s model=%s\n",
             adapter.name.c_str(), acc.modelId()->c_str());
     }
 }
