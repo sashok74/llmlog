@@ -60,8 +60,12 @@ public:
     /// port and this returns that chosen number — useful for tests.
     std::uint16_t boundPort() const noexcept;
 
-private:
+    /// Opaque pimpl — forward-declared in the proxy namespace so helpers
+    /// defined in server.cpp can take it by reference without needing
+    /// access to Server's private section.
     struct Impl;
+
+private:
     std::unique_ptr<Impl> impl_;
 };
 

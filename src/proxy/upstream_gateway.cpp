@@ -135,20 +135,24 @@ void forwardRequest(const UpstreamAdapter&       adapter,
 
     httplib::Client cli(adapter.scheme_host);
     cli.set_connection_timeout(10, 0);   // 10s to connect upstream
-    cli.set_read_timeout(300, 0);        // up to 5 min streaming
+    cli.set_read_timeout(300, 0);        // up to 5 min for long responses
     cli.set_follow_location(false);
 
-    auto upstreamResult = cli.Post(
-        upstreamPath.c_str(), headers, req.body, contentType,
-        [&](const char* data, std::size_t len) {
-            buffered.append(data, len);
-            framer.feed({data, len}, feedEvent);
-            return true;
-        });
+    // MVP buffers the full response body in cpp-httplib's Result; true
+    // streaming passthrough is Phase 3.5 (requires a custom send/recv
+    // pairing). The SSE framer parses the whole buffer once the
+    // upstream call returns — equivalent correctness, one-shot parse.
+    auto upstreamResult =
+        cli.Post(upstreamPath.c_str(), headers, req.body, contentType);
 
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - start).count();
-    framer.finish(feedEvent);
+
+    if (upstreamResult) {
+        buffered = upstreamResult->body;
+        framer.feed(buffered, feedEvent);
+        framer.finish(feedEvent);
+    }
 
     if (!upstreamResult) {
         res.status = 502;
