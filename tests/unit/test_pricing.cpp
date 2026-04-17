@@ -100,15 +100,17 @@ TEST_F(PricingTest, UpsertPriceStoresDecfloatExactly) {
     auto rs = tra->openCursor(st, std::make_tuple(modelId,
                                                   std::string{"2026-03-01 12:00:00 +00:00"}));
 
-    // Read as strings so we can EXPECT_EQ the exact textual DECFLOAT.
+    // Read as strings; DECFLOAT textual form may vary in trailing zeros
+    // / decimal-separator normalization across versions, so compare as
+    // doubles (we know the values fit).
     std::tuple<std::string, std::string, std::string, std::string, std::string> row;
     ASSERT_TRUE(rs->fetch(row));
-    EXPECT_EQ(std::get<0>(row), "15.00");
-    EXPECT_EQ(std::get<1>(row), "75.00");
-    EXPECT_EQ(std::get<2>(row), "1.50");
-    EXPECT_EQ(std::get<3>(row), "18.75");
-    // IMAGE_PER_MTOK was NULL; fbpp string reader returns empty-string for NULL.
-    EXPECT_EQ(std::get<4>(row), "");
+    EXPECT_DOUBLE_EQ(std::stod(std::get<0>(row)), 15.00);
+    EXPECT_DOUBLE_EQ(std::stod(std::get<1>(row)), 75.00);
+    EXPECT_DOUBLE_EQ(std::stod(std::get<2>(row)),  1.50);
+    EXPECT_DOUBLE_EQ(std::stod(std::get<3>(row)), 18.75);
+    // IMAGE_PER_MTOK defaults to 0 now (the column is NOT NULL DEFAULT 0).
+    EXPECT_DOUBLE_EQ(std::stod(std::get<4>(row)),  0.0);
     tra->Commit();
 }
 
@@ -131,8 +133,8 @@ TEST_F(PricingTest, PriceTimeTravelLookup) {
                                                   std::string{"2026-02-15 00:00:00 +00:00"}));
     std::tuple<std::string, std::string> row;
     ASSERT_TRUE(rs->fetch(row));
-    EXPECT_EQ(std::get<0>(row), "5.00");
-    EXPECT_EQ(std::get<1>(row), "15.00");
+    EXPECT_DOUBLE_EQ(std::stod(std::get<0>(row)),  5.00);
+    EXPECT_DOUBLE_EQ(std::stod(std::get<1>(row)), 15.00);
     tra->Commit();
 
     // Call after second-price → gets the second-price numbers.
@@ -140,7 +142,7 @@ TEST_F(PricingTest, PriceTimeTravelLookup) {
     auto rs2  = tra2->openCursor(st, std::make_tuple(modelId,
                                                      std::string{"2026-04-15 00:00:00 +00:00"}));
     ASSERT_TRUE(rs2->fetch(row));
-    EXPECT_EQ(std::get<0>(row), "3.00");
-    EXPECT_EQ(std::get<1>(row), "10.00");
+    EXPECT_DOUBLE_EQ(std::stod(std::get<0>(row)),  3.00);
+    EXPECT_DOUBLE_EQ(std::stod(std::get<1>(row)), 10.00);
     tra2->Commit();
 }

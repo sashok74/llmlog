@@ -23,10 +23,10 @@ std::string makeKey(std::string_view a, std::string_view b) {
     return s;
 }
 
-/// DECFLOAT parameters reach Firebird as strings via CAST(? AS DECFLOAT(34)).
-/// NULLIF(?, '') maps empty-string inputs to NULL BEFORE the CAST so we
-/// never end up trying to CAST '' → DECFLOAT (which Firebird rejects).
-/// One parameter per column; 8 params total.
+/// All DECFLOAT columns are now NOT NULL DEFAULT 0, so the DAO always
+/// passes a non-empty string for each. The caller converts empty
+/// std::string to "0" before binding; NULLIF only remains for the
+/// single optional VARCHAR (NOTE).
 const char* kUpsertPriceSql = R"SQL(
 UPDATE OR INSERT INTO PRICING
     (MODEL_ID, EFFECTIVE_FROM,
@@ -37,9 +37,9 @@ VALUES (
     CAST(? AS TIMESTAMP WITH TIME ZONE),
     CAST(? AS DECFLOAT(34)),
     CAST(? AS DECFLOAT(34)),
-    CAST(NULLIF(?, '') AS DECFLOAT(34)),
-    CAST(NULLIF(?, '') AS DECFLOAT(34)),
-    CAST(NULLIF(?, '') AS DECFLOAT(34)),
+    CAST(? AS DECFLOAT(34)),
+    CAST(? AS DECFLOAT(34)),
+    CAST(? AS DECFLOAT(34)),
     NULLIF(?, '')
 )
 MATCHING (MODEL_ID, EFFECTIVE_FROM)
@@ -184,6 +184,12 @@ void PricingDao::upsertPrice(const Price& price) {
     // the provider already. We still create MODELS on demand.
     const auto modelId = upsertModel(price.provider_name, price.model_id, price.family);
 
+    // Empty-string DECFLOAT inputs become "0" so the CAST never sees ''.
+    // NOTE (VARCHAR) keeps empty → NULL semantics via NULLIF in the SQL.
+    const auto numOrZero = [](const std::string& s) -> std::string {
+        return s.empty() ? std::string{"0"} : s;
+    };
+
     auto tra = conn_->StartTransaction();
     auto st  = conn_->prepareStatement(kUpsertPriceSql);
     tra->execute(st, std::make_tuple(
@@ -191,9 +197,9 @@ void PricingDao::upsertPrice(const Price& price) {
         price.effective_from,
         price.input_per_mtok,
         price.output_per_mtok,
-        price.cache_read_per_mtok,
-        price.cache_write_per_mtok,
-        price.image_per_mtok,
+        numOrZero(price.cache_read_per_mtok),
+        numOrZero(price.cache_write_per_mtok),
+        numOrZero(price.image_per_mtok),
         price.note
     ));
     tra->Commit();
