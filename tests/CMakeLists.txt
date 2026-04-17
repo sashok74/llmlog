@@ -42,3 +42,11 @@ endfunction()
 llmlog_add_test(test_schema          unit/test_schema.cpp)
 llmlog_add_test(test_isql_splitter   unit/test_isql_splitter.cpp)
 llmlog_add_test(test_config          unit/test_config.cpp)
+llmlog_add_test(test_sse_parser      unit/test_sse_parser.cpp)
+
+# SSE-parser fixture tests need to locate tests/fixtures/*.sse at runtime.
+# Inject the source-tree path so the test binary can find them regardless
+# of the cwd chosen by ctest.
+target_compile_definitions(test_sse_parser PRIVATE
+    LLMLOG_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+)

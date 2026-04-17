@@ -34,6 +34,7 @@ add_library(llmlog_core STATIC
     core/isql_splitter.cpp
     core/database.cpp
     core/config.cpp
+    core/sse_parser.cpp
     "${LLMLOG_GENERATED_DIR}/core/embedded_sql.cpp"
 )
 
