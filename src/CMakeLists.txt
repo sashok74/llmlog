@@ -33,6 +33,11 @@ set_property(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" APPEND
 add_library(llmlog_core STATIC
     core/isql_splitter.cpp
     core/database.cpp
+    core/config.cpp
+    core/sse_parser.cpp
+    core/pricing.cpp
+    core/pricing_seed.cpp
+    core/request_log.cpp
     "${LLMLOG_GENERATED_DIR}/core/embedded_sql.cpp"
 )
 

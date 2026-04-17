@@ -41,3 +41,20 @@ endfunction()
 
 llmlog_add_test(test_schema          unit/test_schema.cpp)
 llmlog_add_test(test_isql_splitter   unit/test_isql_splitter.cpp)
+llmlog_add_test(test_config          unit/test_config.cpp)
+llmlog_add_test(test_sse_parser      unit/test_sse_parser.cpp)
+llmlog_add_test(test_pricing         unit/test_pricing.cpp)
+llmlog_add_test(test_pricing_seed    unit/test_pricing_seed.cpp)
+llmlog_add_test(test_request_log     unit/test_request_log.cpp)
+
+# Expose seed/ dir so test_pricing_seed can validate the shipped pricing.json.
+target_compile_definitions(test_pricing_seed PRIVATE
+    LLMLOG_SEED_DIR="${CMAKE_SOURCE_DIR}/seed"
+)
+
+# SSE-parser fixture tests need to locate tests/fixtures/*.sse at runtime.
+# Inject the source-tree path so the test binary can find them regardless
+# of the cwd chosen by ctest.
+target_compile_definitions(test_sse_parser PRIVATE
+    LLMLOG_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+)
