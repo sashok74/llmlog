@@ -41,3 +41,4 @@ endfunction()
 
 llmlog_add_test(test_schema          unit/test_schema.cpp)
 llmlog_add_test(test_isql_splitter   unit/test_isql_splitter.cpp)
+llmlog_add_test(test_config          unit/test_config.cpp)
