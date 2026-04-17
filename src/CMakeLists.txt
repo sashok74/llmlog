@@ -39,6 +39,7 @@ add_library(llmlog_core STATIC
     core/pricing_seed.cpp
     core/request_log.cpp
     proxy/server.cpp
+    proxy/upstream_gateway.cpp
     "${LLMLOG_GENERATED_DIR}/core/embedded_sql.cpp"
 )
 

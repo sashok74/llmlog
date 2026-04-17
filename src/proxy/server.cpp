@@ -1,10 +1,15 @@
 #include "llmlog/proxy/server.hpp"
 
 #include "llmlog/core/config.hpp"
+#include "llmlog/core/pricing.hpp"
+#include "llmlog/core/request_log.hpp"
+#include "llmlog/proxy/upstream_gateway.hpp"
+
+#include <fbpp/core/connection.hpp>
 
 // cpp-httplib pulls in <windows.h> via <winsock2.h> on Windows and that
 // macros-pollutes nlohmann/json's templates. CPPHTTPLIB_OPENSSL_SUPPORT
-// enables HTTPS for the outgoing Client (Phase 3b).
+// enables HTTPS for the outgoing Client.
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <httplib.h>
 
@@ -12,21 +17,39 @@
 #include <chrono>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <unordered_map>
 
 namespace llmlog::proxy {
 
 struct Server::Impl {
-    explicit Impl(const llmlog::core::Config& cfg) : config(cfg) {}
+    Impl(const llmlog::core::Config& cfg, fbpp::core::Connection* dbConn)
+        : config(cfg)
+        , conn(dbConn) {
+        if (conn) {
+            pricing.emplace(*conn);
+            logger.emplace(*conn);
+        }
+        for (const auto& [name, pcfg] : config.providers) {
+            adapters.emplace(name, buildAdapter(name, pcfg, pcfg.kind));
+        }
+    }
 
-    const llmlog::core::Config& config;
-    httplib::Server             http;
-    std::thread                 listener;
-    std::atomic<std::uint16_t>  port{0};
-    std::atomic<bool>           running{false};
-    mutable std::mutex          mu;
+    const llmlog::core::Config&            config;
+    fbpp::core::Connection*                conn = nullptr;
+    std::optional<core::PricingDao>        pricing;
+    std::optional<core::RequestLogDao>     logger;
+    std::unordered_map<std::string, UpstreamAdapter> adapters;
+    std::mutex                             dbMu;   ///< serializes pricing/logger access
+
+    httplib::Server                        http;
+    std::thread                            listener;
+    std::atomic<std::uint16_t>             port{0};
+    std::atomic<bool>                      running{false};
+    mutable std::mutex                     mu;
 };
 
 namespace {
@@ -40,30 +63,62 @@ void registerHealth(httplib::Server& http) {
     });
 }
 
-/// Catch-all that returns 501 Not Implemented for any path that hasn't
-/// been routed yet. Lets integration tests see the proxy is alive even
-/// before provider adapters are wired up.
-void registerCatchAll(httplib::Server& http) {
-    auto handler = [](const httplib::Request& req, httplib::Response& res) {
-        res.status = 501;
-        res.set_content(
-            R"({"error":"not_implemented","path":")" + req.path + R"("})",
-            "application/json");
+/// Parses "/provider/rest/of/path" → ("provider", "/rest/of/path").
+/// Returns empty provider when the path is "/" or has no prefix.
+std::pair<std::string, std::string> splitPath(const std::string& path) {
+    if (path.size() < 2 || path.front() != '/') return {{}, path};
+    const auto next = path.find('/', 1);
+    if (next == std::string::npos) {
+        return {path.substr(1), "/"};
+    }
+    return {path.substr(1, next - 1), path.substr(next)};
+}
+
+/// Catch-all that either routes to the configured provider or returns
+/// 404 / 501 as appropriate.
+void registerDispatch(Server::Impl& impl) {
+    auto handler = [&](const httplib::Request& req, httplib::Response& res) {
+        auto [prov, suffix] = splitPath(req.path);
+        if (prov.empty()) {
+            res.status = 404;
+            res.set_content(R"({"error":"no_provider_in_path"})", "application/json");
+            return;
+        }
+        auto it = impl.adapters.find(prov);
+        if (it == impl.adapters.end()) {
+            res.status = 404;
+            res.set_content(
+                R"({"error":"unknown_provider","provider":")" + prov + R"("})",
+                "application/json");
+            return;
+        }
+        if (!impl.pricing || !impl.logger) {
+            // Proxy built without a DB backend — still forward, but
+            // skip logging. Handled inside forwardRequest via a stub?
+            // For now require the DB; tests that need listener-only
+            // behavior go through /healthz.
+            res.status = 503;
+            res.set_content(
+                R"({"error":"no_database_configured"})", "application/json");
+            return;
+        }
+        forwardRequest(it->second, suffix, req, res,
+                       *impl.pricing, *impl.logger, impl.dbMu);
     };
-    // cpp-httplib requires explicit registration per method; the provider
-    // routing will narrow these in a follow-up commit.
-    http.Post(".*",   handler);
-    http.Get(".*",    handler);
-    http.Put(".*",    handler);
-    http.Delete(".*", handler);
+
+    // cpp-httplib requires explicit registration per method.
+    impl.http.Post(".*",   handler);
+    impl.http.Get(".*",    handler);
+    impl.http.Put(".*",    handler);
+    impl.http.Delete(".*", handler);
 }
 
 } // namespace
 
-Server::Server(const llmlog::core::Config& config)
-    : impl_(std::make_unique<Impl>(config)) {
-    registerHealth  (impl_->http);
-    registerCatchAll(impl_->http);
+Server::Server(const llmlog::core::Config& config, fbpp::core::Connection* dbConn)
+    : impl_(std::make_unique<Impl>(config, dbConn)) {
+    registerHealth(impl_->http);
+    registerDispatch(*impl_);
 }
 
 Server::~Server() { stop(); }

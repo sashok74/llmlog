@@ -53,8 +53,8 @@ TEST(ProxyServer, StartsAndAnswersHealthz) {
     srv.stop();
 }
 
-TEST(ProxyServer, Returns501ForUnroutedPaths) {
-    auto cfg = makeEphemeralConfig();
+TEST(ProxyServer, UnknownProviderReturns404) {
+    auto cfg = makeEphemeralConfig();  // no providers configured
     llmlog::proxy::Server srv(cfg);
     srv.start();
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -64,8 +64,33 @@ TEST(ProxyServer, Returns501ForUnroutedPaths) {
     auto res = cli.Post("/anthropic/v1/messages",
                         R"({"model":"x"})", "application/json");
     ASSERT_TRUE(res);
-    EXPECT_EQ(res->status, 501);
-    EXPECT_NE(res->body.find("not_implemented"), std::string::npos);
+    EXPECT_EQ(res->status, 404);
+    EXPECT_NE(res->body.find("unknown_provider"), std::string::npos);
+
+    srv.stop();
+}
+
+TEST(ProxyServer, ConfiguredProviderButNoDbReturns503) {
+    auto cfg = makeEphemeralConfig();
+    llmlog::core::ProviderConfig pcfg;
+    pcfg.base_url    = "https://example.invalid";
+    pcfg.api_key     = "sk-fake";
+    pcfg.auth_header = "x-api-key";
+    pcfg.auth_scheme = "";
+    pcfg.kind        = "anthropic";
+    cfg.providers.emplace("anthropic", std::move(pcfg));
+
+    llmlog::proxy::Server srv(cfg);   // dbConn = nullptr
+    srv.start();
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    httplib::Client cli("127.0.0.1", srv.boundPort());
+    cli.set_connection_timeout(2, 0);
+    auto res = cli.Post("/anthropic/v1/messages",
+                        R"({"model":"x"})", "application/json");
+    ASSERT_TRUE(res);
+    EXPECT_EQ(res->status, 503);
+    EXPECT_NE(res->body.find("no_database_configured"), std::string::npos);
 
     srv.stop();
 }

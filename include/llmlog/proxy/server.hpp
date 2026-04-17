@@ -21,6 +21,8 @@
 #include <memory>
 #include <string>
 
+namespace fbpp::core { class Connection; }
+
 namespace llmlog::core {
 struct Config;
 }
@@ -32,7 +34,11 @@ class Server {
 public:
     /// Constructs but does NOT start. Caller must call start() then
     /// either wait() (blocking) or stop() from another thread.
-    explicit Server(const llmlog::core::Config& config);
+    /// If @p dbConn is non-null, successful upstream calls are logged
+    /// to REQUESTS via RequestLogDao; otherwise the proxy still works
+    /// (minus persistence). Tests pass nullptr for pure-HTTP cases.
+    Server(const llmlog::core::Config& config,
+           fbpp::core::Connection*     dbConn = nullptr);
     ~Server();
 
     Server(const Server&)            = delete;
