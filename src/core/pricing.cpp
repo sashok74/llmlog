@@ -48,12 +48,11 @@ MATCHING (MODEL_ID, EFFECTIVE_FROM)
 
 // ---------------------------------------------------------------------------
 // Providers: manual SMALLINT ID, upsert by UNIQUE(NAME).
+// We do NOT short-circuit on cache here — the caller may have updated
+// base_url / kind and expects that to land. The cache is for other
+// methods (upsertModel / resolveModelId) to skip the NAME→ID lookup.
 // ---------------------------------------------------------------------------
 std::int16_t PricingDao::upsertProvider(const ProviderMeta& meta) {
-    if (auto it = providerIds_.find(meta.name); it != providerIds_.end()) {
-        return it->second;
-    }
-
     // Try to find an existing row. If present, UPDATE and cache its ID.
     auto tra  = conn_->StartTransaction();
     auto find = conn_->prepareStatement(
@@ -62,11 +61,15 @@ std::int16_t PricingDao::upsertProvider(const ProviderMeta& meta) {
     std::tuple<std::int16_t> row;
     if (rs->fetch(row)) {
         const auto id = std::get<0>(row);
+        tra->Commit();
+
+        auto tra2 = conn_->StartTransaction();
         auto upd = conn_->prepareStatement(
             "UPDATE PROVIDERS SET BASE_URL = ?, KIND = ? WHERE ID = ?");
-        tra->execute(upd, std::make_tuple(meta.base_url, meta.kind, id));
-        tra->Commit();
-        providerIds_.emplace(meta.name, id);
+        tra2->execute(upd, std::make_tuple(meta.base_url, meta.kind, id));
+        tra2->Commit();
+
+        providerIds_[meta.name] = id;
         return id;
     }
     tra->Commit();
@@ -120,21 +123,45 @@ std::int32_t PricingDao::upsertModel(std::string_view providerName,
     }
     const auto providerId = pit->second;
 
-    // UPDATE OR INSERT (upsert by unique key), return ID.
-    auto tra = conn_->StartTransaction();
-    auto ups = conn_->prepareStatement(
-        "UPDATE OR INSERT INTO MODELS (PROVIDER_ID, MODEL_ID, FAMILY) "
-        "VALUES (?, ?, ?) "
-        "MATCHING (PROVIDER_ID, MODEL_ID) "
-        "RETURNING ID");
-    // `family` of "" still becomes empty varchar; acceptable.
-    auto rs = tra->openCursor(ups, std::make_tuple(providerId, modelId, family));
-    std::tuple<std::int32_t> idRow;
-    if (!rs->fetch(idRow)) {
-        tra->Rollback();
-        throw std::runtime_error("UPDATE OR INSERT did not return a MODELS.ID");
+    // Two-step approach because UPDATE OR INSERT ... RETURNING returns an
+    // EMPTY result set on the UPDATE branch in Firebird 5 (RETURNING fires
+    // only when INSERT happens). We therefore look up first and insert
+    // only when missing.
+    auto tra  = conn_->StartTransaction();
+    auto find = conn_->prepareStatement(
+        "SELECT ID FROM MODELS WHERE PROVIDER_ID = ? AND MODEL_ID = ?");
+    auto rsF  = tra->openCursor(find, std::make_tuple(providerId, std::string(modelId)));
+    std::tuple<std::int32_t> rowF;
+    if (rsF->fetch(rowF)) {
+        const auto existingId = std::get<0>(rowF);
+        tra->Commit();
+
+        // Update FAMILY if changed (only when caller supplied a value).
+        if (!family.empty()) {
+            auto tra2 = conn_->StartTransaction();
+            auto upd  = conn_->prepareStatement(
+                "UPDATE MODELS SET FAMILY = ? WHERE ID = ?");
+            tra2->execute(upd, std::make_tuple(std::string(family), existingId));
+            tra2->Commit();
+        }
+        modelIds_[cacheKey] = existingId;
+        return existingId;
     }
     tra->Commit();
+
+    // Not found — INSERT and capture IDENTITY via RETURNING.
+    auto tra2 = conn_->StartTransaction();
+    auto ins  = conn_->prepareStatement(
+        "INSERT INTO MODELS (PROVIDER_ID, MODEL_ID, FAMILY) "
+        "VALUES (?, ?, ?) RETURNING ID");
+    auto rsI = tra2->openCursor(ins, std::make_tuple(
+        providerId, std::string(modelId), std::string(family)));
+    std::tuple<std::int32_t> idRow;
+    if (!rsI->fetch(idRow)) {
+        tra2->Rollback();
+        throw std::runtime_error("INSERT RETURNING ID did not produce a row");
+    }
+    tra2->Commit();
 
     const auto id = std::get<0>(idRow);
     modelIds_.emplace(cacheKey, id);
