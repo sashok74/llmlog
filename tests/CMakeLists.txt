@@ -46,6 +46,12 @@ llmlog_add_test(test_sse_parser      unit/test_sse_parser.cpp)
 llmlog_add_test(test_pricing         unit/test_pricing.cpp)
 llmlog_add_test(test_pricing_seed    unit/test_pricing_seed.cpp)
 llmlog_add_test(test_request_log     unit/test_request_log.cpp)
+llmlog_add_test(test_proxy_server       unit/test_proxy_server.cpp)
+llmlog_add_test(test_proxy_roundtrip    integration/test_proxy_roundtrip.cpp)
+
+target_compile_definitions(test_proxy_roundtrip PRIVATE
+    LLMLOG_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
+)
 
 # Expose seed/ dir so test_pricing_seed can validate the shipped pricing.json.
 target_compile_definitions(test_pricing_seed PRIVATE

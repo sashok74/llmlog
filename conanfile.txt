@@ -1,6 +1,13 @@
 [requires]
 gtest/1.14.0
 nlohmann_json/3.11.3
+cpp-httplib/0.15.3
+openssl/3.2.2
+cli11/2.4.2
+
+[options]
+cpp-httplib/*:with_openssl=True
+cpp-httplib/*:with_zlib=True
 
 [generators]
 CMakeDeps

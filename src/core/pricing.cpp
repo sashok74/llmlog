@@ -109,10 +109,12 @@ std::int32_t PricingDao::upsertModel(std::string_view providerName,
     // that for us.
     auto pit = providerIds_.find(std::string(providerName));
     if (pit == providerIds_.end()) {
-        // Fallback: try to look it up.
+        // Fallback: try to look it up. std::string(providerName) here is
+        // required — fbpp's tuple packer can't bind a std::string_view
+        // directly.
         auto tra = conn_->StartTransaction();
         auto st  = conn_->prepareStatement("SELECT ID FROM PROVIDERS WHERE NAME = ?");
-        auto rs  = tra->openCursor(st, std::make_tuple(providerName));
+        auto rs  = tra->openCursor(st, std::make_tuple(std::string(providerName)));
         std::tuple<std::int16_t> row;
         if (!rs->fetch(row)) {
             tra->Commit();

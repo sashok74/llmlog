@@ -228,6 +228,7 @@ ProviderConfig parseProvider(const std::string& name,
     p.base_url    = readString   (obj, "base_url", path);
     p.auth_header = readStringOr(obj, "auth_header", p.auth_header);
     p.auth_scheme = readStringOr(obj, "auth_scheme", p.auth_scheme);
+    p.kind        = readStringOr(obj, "kind",        p.kind);
 
     auto key      = resolveSecret(obj, "api_key", path, baseDir, /*required=*/true);
     p.api_key     = std::move(key.value);

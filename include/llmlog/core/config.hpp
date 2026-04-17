@@ -65,6 +65,17 @@ struct ProviderConfig {
     std::string api_key;                     ///< resolved
     std::string auth_header = "Authorization";
     std::string auth_scheme = "Bearer";      ///< "" for no scheme prefix
+    /// Upstream wire-protocol family; controls which usage-extractor the
+    /// proxy runs against the response stream.
+    ///   "anthropic"       — named-event SSE, usage in message_delta
+    ///   "openai"          — data-only SSE, final usage chunk
+    ///   "openai_compat"   — same shape as openai (DeepSeek, Moonshot,
+    ///                       Ollama, LM Studio, Qwen, Zhipu, ...)
+    ///   "gemini"          — treated as openai_compat for now; proper
+    ///                       Gemini streaming support is a later phase
+    /// Defaults to "openai_compat" so plain OpenAI-compatible providers
+    /// need no extra config.
+    std::string kind = "openai_compat";
     std::map<std::string, std::string> extra_headers;
 };
 
