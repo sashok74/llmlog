@@ -149,17 +149,23 @@ std::int32_t PricingDao::upsertModel(std::string_view providerName,
     }
     tra->Commit();
 
-    // Not found — INSERT and capture IDENTITY via RETURNING.
+    // Not found — plain INSERT, then SELECT for the IDENTITY-assigned ID.
+    // fbpp doesn't handle INSERT ... RETURNING via openCursor; use the
+    // two-statement pattern in a single transaction instead (the UNIQUE
+    // constraint guarantees the SELECT picks up the row we just inserted).
     auto tra2 = conn_->StartTransaction();
     auto ins  = conn_->prepareStatement(
-        "INSERT INTO MODELS (PROVIDER_ID, MODEL_ID, FAMILY) "
-        "VALUES (?, ?, ?) RETURNING ID");
-    auto rsI = tra2->openCursor(ins, std::make_tuple(
-        providerId, std::string(modelId), std::string(family)));
+        "INSERT INTO MODELS (PROVIDER_ID, MODEL_ID, FAMILY) VALUES (?, ?, ?)");
+    tra2->execute(ins, std::make_tuple(providerId,
+                                       std::string(modelId),
+                                       std::string(family)));
+    auto sel = conn_->prepareStatement(
+        "SELECT ID FROM MODELS WHERE PROVIDER_ID = ? AND MODEL_ID = ?");
+    auto rsS = tra2->openCursor(sel, std::make_tuple(providerId, std::string(modelId)));
     std::tuple<std::int32_t> idRow;
-    if (!rsI->fetch(idRow)) {
+    if (!rsS->fetch(idRow)) {
         tra2->Rollback();
-        throw std::runtime_error("INSERT RETURNING ID did not produce a row");
+        throw std::runtime_error("post-INSERT SELECT did not find the new row");
     }
     tra2->Commit();
 
