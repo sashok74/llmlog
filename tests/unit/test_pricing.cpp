@@ -85,7 +85,7 @@ TEST_F(PricingTest, UpsertPriceStoresDecfloatExactly) {
         .cache_read_per_mtok = "1.50",
         .cache_write_per_mtok= "18.75",
         .image_per_mtok      = "",
-        .effective_from      = "2026-01-01 00:00:00.0000 UTC",
+        .effective_from      = "2026-01-01 00:00:00.0000 +00:00",
         .note                = "Tier 1"
     };
     ASSERT_NO_THROW(dao.upsertPrice(p));
@@ -98,7 +98,7 @@ TEST_F(PricingTest, UpsertPriceStoresDecfloatExactly) {
         "FROM SP_GET_EFFECTIVE_PRICING(?, CAST(? AS TIMESTAMP WITH TIME ZONE))");
     const auto modelId = dao.resolveModelId("anthropic", "claude-opus-4-7");
     auto rs = tra->openCursor(st, std::make_tuple(modelId,
-                                                  std::string{"2026-03-01 12:00:00 UTC"}));
+                                                  std::string{"2026-03-01 12:00:00 +00:00"}));
 
     // Read as strings so we can EXPECT_EQ the exact textual DECFLOAT.
     std::tuple<std::string, std::string, std::string, std::string, std::string> row;
@@ -117,9 +117,9 @@ TEST_F(PricingTest, PriceTimeTravelLookup) {
     dao.upsertProvider({"openai", "https://api.openai.com/v1", "openai"});
 
     dao.upsertPrice({"openai", "gpt-5.4", "gpt-5", "5.00",  "15.00", "", "", "",
-                     "2026-01-01 00:00:00 UTC", ""});
+                     "2026-01-01 00:00:00 +00:00", ""});
     dao.upsertPrice({"openai", "gpt-5.4", "gpt-5", "3.00",  "10.00", "", "", "",
-                     "2026-03-01 00:00:00 UTC", "Q1 price cut"});
+                     "2026-03-01 00:00:00 +00:00", "Q1 price cut"});
 
     // Call before second-price → gets the first-price numbers.
     const auto modelId = dao.resolveModelId("openai", "gpt-5.4");
@@ -128,7 +128,7 @@ TEST_F(PricingTest, PriceTimeTravelLookup) {
         "SELECT INPUT_PER_MTOK, OUTPUT_PER_MTOK "
         "FROM SP_GET_EFFECTIVE_PRICING(?, CAST(? AS TIMESTAMP WITH TIME ZONE))");
     auto rs = tra->openCursor(st, std::make_tuple(modelId,
-                                                  std::string{"2026-02-15 00:00:00 UTC"}));
+                                                  std::string{"2026-02-15 00:00:00 +00:00"}));
     std::tuple<std::string, std::string> row;
     ASSERT_TRUE(rs->fetch(row));
     EXPECT_EQ(std::get<0>(row), "5.00");
@@ -138,7 +138,7 @@ TEST_F(PricingTest, PriceTimeTravelLookup) {
     // Call after second-price → gets the second-price numbers.
     auto tra2 = connection_->StartTransaction();
     auto rs2  = tra2->openCursor(st, std::make_tuple(modelId,
-                                                     std::string{"2026-04-15 00:00:00 UTC"}));
+                                                     std::string{"2026-04-15 00:00:00 +00:00"}));
     ASSERT_TRUE(rs2->fetch(row));
     EXPECT_EQ(std::get<0>(row), "3.00");
     EXPECT_EQ(std::get<1>(row), "10.00");

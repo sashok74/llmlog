@@ -34,7 +34,7 @@ TEST(PricingSeedParse, MinimalSeed) {
       "prices": [
         {"provider":"anthropic","model":"claude-opus-4-7",
          "input_per_mtok":"15.00","output_per_mtok":"75.00",
-         "effective_from":"2026-01-01 00:00:00 UTC"}
+         "effective_from":"2026-01-01 00:00:00 +00:00"}
       ]
     })JSON";
     auto seed = parsePricingSeed(kJson);
@@ -58,7 +58,7 @@ TEST(PricingSeedParse, OptionalFieldsPropagate) {
          "input_per_mtok":"1","output_per_mtok":"2",
          "cache_read_per_mtok":"0.1","cache_write_per_mtok":"0.5",
          "note":"hi",
-         "effective_from":"2026-01-01 00:00:00 UTC"}
+         "effective_from":"2026-01-01 00:00:00 +00:00"}
       ]
     })JSON";
     auto seed = parsePricingSeed(kJson);
@@ -75,7 +75,7 @@ TEST(PricingSeedParse, NullOptionalsBecomeEmpty) {
         {"provider":"a","model":"m",
          "input_per_mtok":"1","output_per_mtok":"2",
          "cache_read_per_mtok":null,
-         "effective_from":"2026-01-01 00:00:00 UTC"}
+         "effective_from":"2026-01-01 00:00:00 +00:00"}
       ]
     })JSON";
     auto seed = parsePricingSeed(kJson);
@@ -131,11 +131,11 @@ TEST_F(PricingSeedApplyTest, ApplySeedThenRereadViaProcedure) {
       "prices": [
         {"provider":"anthropic","model":"claude-haiku-4-5","family":"claude-haiku",
          "input_per_mtok":"1.00","output_per_mtok":"5.00",
-         "effective_from":"2026-01-01 00:00:00 UTC"},
+         "effective_from":"2026-01-01 00:00:00 +00:00"},
         {"provider":"openai","model":"gpt-5.4-mini","family":"gpt-5",
          "input_per_mtok":"0.30","output_per_mtok":"1.20",
          "cache_read_per_mtok":"0.15",
-         "effective_from":"2026-01-01 00:00:00 UTC"}
+         "effective_from":"2026-01-01 00:00:00 +00:00"}
       ]
     })JSON";
 

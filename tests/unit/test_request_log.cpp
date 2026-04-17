@@ -39,7 +39,7 @@ protected:
                         /* cr  */  "1.50",
                         /* cw  */  "18.75",
                         /* img */  "",
-                        "2026-01-01 00:00:00 UTC",
+                        "2026-01-01 00:00:00 +00:00",
                         "test"});
         modelId_ = pd.resolveModelId("anthropic", "claude-opus-4-7");
     }
@@ -53,7 +53,7 @@ TEST_F(RequestLogTest, InsertReturnsIdAndExactCost) {
     // 1000 input tokens @ $15/M + 200 output @ $75/M
     //  = 0.015 + 0.015 = 0.030
     RequestLogEntry e{};
-    e.call_time     = "2026-04-17 12:00:00 UTC";
+    e.call_time     = "2026-04-17 12:00:00 +00:00";
     e.model_id      = modelId_;
     e.input_tokens  = 1000;
     e.output_tokens = 200;
@@ -73,7 +73,7 @@ TEST_F(RequestLogTest, InsertCacheReadDiscountApplies) {
 
     // Pure cache read — 1000 tokens @ $1.50/M → 0.0015
     RequestLogEntry e{};
-    e.call_time   = "2026-04-17 12:00:00 UTC";
+    e.call_time   = "2026-04-17 12:00:00 +00:00";
     e.model_id    = modelId_;
     e.cache_read  = 1000;
     e.latency_ms  = 100;
@@ -88,7 +88,7 @@ TEST_F(RequestLogTest, InsertRowsAreQueryable) {
 
     for (int i = 1; i <= 3; ++i) {
         dao.insert(RequestLogEntry{
-            .call_time    = "2026-04-17 12:00:00 UTC",
+            .call_time    = "2026-04-17 12:00:00 +00:00",
             .model_id     = modelId_,
             .input_tokens = 100 * i,
             .output_tokens= 20  * i,
@@ -126,7 +126,7 @@ TEST_F(RequestLogTest, MissingPricingThrows) {
 
     RequestLogDao dao(*connection_);
     RequestLogEntry e{};
-    e.call_time    = "2026-04-17 12:00:00 UTC";
+    e.call_time    = "2026-04-17 12:00:00 +00:00";
     e.model_id     = id;
     e.input_tokens = 10;
     e.latency_ms   = 100;
