@@ -134,7 +134,9 @@ TEST_F(RequestLogTest, MissingPricingThrows) {
     e.http_status  = 200;
 
     // SP raises EX_PRICING_NOT_FOUND; fbpp may surface this as its own
-    // FirebirdException OR as the generic std::runtime_error. Match the
-    // common parent.
-    EXPECT_THROW(dao.insert(e), std::exception);
+    // FirebirdException, as a Firebird::FbException (which doesn't
+    // inherit std::exception), or as some other type depending on the
+    // status-wrapping path. We just want to assert that insert refuses
+    // to write a row when no pricing is configured.
+    EXPECT_ANY_THROW(dao.insert(e));
 }
