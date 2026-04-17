@@ -5,6 +5,7 @@
 
 #include <fbpp/core/exception.hpp>
 #include <fbpp/core/firebird_compat.hpp>
+#include <fbpp/core/environment.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -200,10 +201,18 @@ void forwardRequest(const UpstreamAdapter&       adapter,
             adapter.name.c_str(), acc.modelId()->c_str(), e.what());
     } catch (const Firebird::FbException& e) {
         // Raw OO-API exception — fbpp sometimes lets this escape
-        // directly rather than wrapping it.
+        // directly rather than wrapping it. Format the status vector
+        // to recover the human-readable error text.
+        char buf[1024]{};
+        try {
+            auto& env = fbpp::core::Environment::getInstance();
+            env.getUtil()->formatStatus(buf, sizeof(buf), e.getStatus());
+        } catch (...) {
+            std::snprintf(buf, sizeof(buf), "(status-format failed)");
+        }
         std::fprintf(stderr,
-            "[llmlog] request-log insert: Firebird::FbException provider=%s model=%s\n",
-            adapter.name.c_str(), acc.modelId()->c_str());
+            "[llmlog] request-log insert: Firebird::FbException provider=%s model=%s: %s\n",
+            adapter.name.c_str(), acc.modelId()->c_str(), buf);
     } catch (const std::exception& e) {
         std::fprintf(stderr,
             "[llmlog] request-log insert: std::exception provider=%s model=%s: %s\n",
