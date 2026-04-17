@@ -79,19 +79,24 @@ client = genai.Client(http_options={"base_url":"http://127.0.0.1:7788/gemini"})
 
 ---
 
-## Dev-tools (zero code change, one env var)
+## Coding agents
 
-All of these support pointing at a custom base URL. Set the env and
-restart the tool.
+The full matrix of LLM-driven code assistants (Claude Code, Aider, Cline,
+Continue, OpenHands, Goose, Cursor, Windsurf, ...) including caveats
+and a ready-to-run Aider demo recipe lives in
+**[docs/coding-agents.md](coding-agents.md)**.
+
+Quick shortlist — these work with just an env var:
 
 | Tool | Env variable |
 |---|---|
-| **Claude Code** | `ANTHROPIC_BASE_URL=http://127.0.0.1:7788/anthropic` |
+| **Claude Code** | `ANTHROPIC_BASE_URL=http://127.0.0.1:7788/anthropic` (API-key accounts only — subscription OAuth breaks) |
 | **Aider** | `OPENAI_API_BASE=http://127.0.0.1:7788/openai/v1` |
-| **Cursor** | Settings → OpenAI API → Base URL: `http://127.0.0.1:7788/openai/v1` |
 | **Continue.dev** | In `~/.continue/config.json`, set `apiBase` per model entry |
 | **Zed AI** | Settings → Assistant → API URL |
 | **Goose** (Block) | `GOOSE_OPENAI_API_URL=http://127.0.0.1:7788/openai/v1` |
+| **Cline** / **Roo Code** (VS Code) | Settings → "OpenAI Compatible" → Base URL |
+| **OpenHands** | `LLM_BASE_URL=http://127.0.0.1:7788/openai/v1` |
 
 ---
 

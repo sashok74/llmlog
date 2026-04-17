@@ -108,6 +108,7 @@ All four families, through path-prefix routing `/<provider>/...`:
 ## Documentation
 
 - **[Clients — how to connect](docs/clients.md)** — SDKs, CLIs, IDE extensions, web UIs
+- **[Coding agents](docs/coding-agents.md)** — Claude Code, Aider, Cline, Continue, OpenHands, Goose, ... — which work, which don't, and why
 - **[Deployment](docs/deploy.md)** — Linux VPS setup end-to-end
 - **[Config reference](docs/config.md)** — every field in `config.json`
 
