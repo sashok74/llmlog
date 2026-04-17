@@ -1,0 +1,10 @@
+# SSE fixtures are captured verbatim from upstream; line endings must not
+# be mangled by autocrlf on Windows checkouts, otherwise the parser tests
+# will fail on byte-exact comparisons.
+tests/fixtures/*.sse  binary
+
+# Normalize everything else to LF in repo (default behavior).
+*               text=auto eol=lf
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+*.ps1           text eol=crlf
